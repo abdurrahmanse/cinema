@@ -23,7 +23,7 @@ async function Content({ params, searchParams }: Pick<PageProps<"/[section]/[cat
 
 export default function SectionCategoryPage(props: PageProps<"/[section]/[category]">) {
   return (
-    <Suspense fallback={<Container className="pb-24 pt-32"><MovieGridSkeleton /></Container>}>
+    <Suspense fallback={<Container className="pb-24 pt-28"><MovieGridSkeleton /></Container>}>
       <Content params={props.params} searchParams={props.searchParams} />
     </Suspense>
   );

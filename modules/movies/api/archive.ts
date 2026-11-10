@@ -1,3 +1,4 @@
+import { fetchJson } from "./http";
 import type {
   Country, FilterBounds, Genre, ItemKind, Movie, MovieCategory, MovieFilters, MovieProvider, Paginated,
   SectionId, SortKey,
@@ -15,6 +16,11 @@ const BLOCKED = "NOT subject:(exploitation OR erotic OR nudist OR sexploitation 
 const SCOPES: Record<SectionId, { query: string; minDownloads: number }> = {
   movies: { query: 'collection:feature_films AND NOT subject:(serial OR "tv series")', minDownloads: 2000 },
   serials: { query: '(collection:classic_tv OR subject:(serial OR "tv series" OR chapter))', minDownloads: 300 },
+  indian: {
+    query:
+      'collection:feature_films AND (subject:("hindi" OR "indian" OR "india" OR "bollywood" OR "tamil" OR "telugu" OR "bengali") OR language:("hindi" OR "tamil" OR "telugu" OR "bengali"))',
+    minDownloads: 100,
+  },
   cartoons: { query: "collection:(classic_cartoons OR animationandcartoons OR vintage_cartoons)", minDownloads: 300 },
   drama: {
     query: 'collection:classic_tv AND subject:(drama OR "tv drama" OR play OR theatre OR playhouse)',
@@ -75,8 +81,13 @@ const DRAMA_GENRES: ArchiveGenre[] = [
   g("theatre", "Theatre & Stage", "theatre", "play", "playhouse"),
 ];
 
+const INDIAN_GENRES: ArchiveGenre[] = MOVIE_GENRES.filter((x) =>
+  ["drama", "comedy", "action", "romance", "musical", "thriller", "crime", "family", "history"].includes(x.id),
+);
+
 const GENRES_BY_SECTION: Record<SectionId, ArchiveGenre[]> = {
   movies: MOVIE_GENRES,
+  indian: INDIAN_GENRES,
   serials: SERIAL_GENRES,
   cartoons: CARTOON_GENRES,
   drama: DRAMA_GENRES,
@@ -175,9 +186,9 @@ async function search(q: string, sort: string, page: number): Promise<Paginated<
   url.searchParams.set("page", String(page));
   url.searchParams.set("output", "json");
 
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Archive search ${res.status}`);
-  const { response } = (await res.json()) as { response: { numFound: number; docs: Doc[] } };
+  const { data } = await fetchJson<{ response: { numFound: number; docs: Doc[] } }>(url);
+  if (!data) throw new Error("Archive search failed");
+  const { response } = data;
   return {
     results: response.docs.map(toMovie),
     page,
@@ -227,13 +238,16 @@ export const archiveProvider: MovieProvider = {
 
   async detail(_kind: ItemKind, id) {
     if (!/^[\w.-]+$/.test(id)) return null;
-    const res = await fetch(`https://archive.org/metadata/${id}`);
-    if (!res.ok) return null;
-    const data = (await res.json()) as { metadata?: Doc & { licenseurl?: string }; files?: ArchiveFile[] };
-    if (!data.metadata) return null;
+    const { data } = await fetchJson<{ metadata?: Doc & { licenseurl?: string }; files?: ArchiveFile[] }>(
+      `https://archive.org/metadata/${id}`,
+    );
+    if (!data?.metadata) return null;
 
+    // Every playable derivative is a "server": best quality first, then alternates.
     const mp4s = (data.files ?? []).filter((f) => /\.mp4$/i.test(f.name));
-    const file = mp4s.find((f) => f.format === "h.264") ?? mp4s.find((f) => f.format === "MPEG4") ?? mp4s[0];
+    const rank = (f: ArchiveFile) => (f.format === "h.264" ? 0 : f.format === "MPEG4" ? 1 : 2);
+    const ordered = [...mp4s].sort((a, b) => rank(a) - rank(b));
+    const file = ordered[0];
     if (!file) return null;
 
     const meta = data.metadata;
@@ -252,9 +266,13 @@ export const archiveProvider: MovieProvider = {
       directors: list(meta.creator).slice(0, 2),
       cast: [],
       playback: {
-        kind: "file",
-        url: `https://archive.org/download/${id}/${file.name.split("/").map(encodeURIComponent).join("/")}`,
+        kind: "stream",
         label: "Full film",
+        sources: ordered.slice(0, 3).map((f, i) => ({
+          url: `https://archive.org/download/${id}/${f.name.split("/").map(encodeURIComponent).join("/")}`,
+          type: "file" as const,
+          label: `Server ${i + 1}`,
+        })),
       },
       similar: similar?.results.slice(0, 10) ?? [],
     };

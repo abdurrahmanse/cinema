@@ -27,10 +27,10 @@ export function LiveRefresh() {
   }, [router]);
 
   return (
-    <span className="inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.25em] text-primary">
+    <span className="inline-flex items-center gap-2 rounded-full border border-border bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-muted-foreground">
       <span className="relative flex size-2">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-primary opacity-60" />
-        <span className="relative inline-flex size-2 rounded-full bg-primary" />
+        <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+        <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
       </span>
       Live · updates automatically
     </span>

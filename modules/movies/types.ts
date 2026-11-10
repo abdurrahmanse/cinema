@@ -1,4 +1,4 @@
-export type SectionId = "movies" | "serials" | "cartoons" | "drama";
+export type SectionId = "movies" | "indian" | "serials" | "cartoons" | "drama";
 
 /** Which detail route an item belongs to */
 export type ItemKind = "movie" | "tv";
@@ -23,9 +23,17 @@ export type CastMember = {
   character: string;
 };
 
+export type StreamSource = { url: string; type: "file" | "hls"; label: string };
+
 export type Playback =
-  | { kind: "file"; url: string; label: string }
-  | { kind: "hls"; url: string; label: string }
+  | {
+      kind: "stream";
+      label: string;
+      /** Ordered by preference; the player fails over to the next one automatically */
+      sources: StreamSource[];
+      /** Last-resort fallback when every server fails */
+      trailerKey?: string | null;
+    }
   | { kind: "youtube"; key: string; label: string };
 
 export type MovieDetail = Movie & {

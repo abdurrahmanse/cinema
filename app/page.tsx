@@ -1,12 +1,26 @@
 import { Suspense } from "react";
-import { BrowseView } from "@/modules/movies/components/browse-view";
-import { MovieGridSkeleton } from "@/modules/movies/components/movie-grid";
-import { Container } from "@/shared/ui/container";
+import { ContinueWatching } from "@/modules/library/continue-watching";
+import { BillboardSection, BillboardSkeleton } from "@/modules/movies/components/billboard-section";
+import { RailRow } from "@/modules/movies/components/rail-row";
+import { RailSkeleton } from "@/modules/movies/components/rail-carousel";
+import { rails } from "@/modules/movies/rails";
+import { providerInfo } from "@/modules/movies/services/movie-service";
 
-export default function HomePage(props: PageProps<"/">) {
+export default function HomePage() {
+  const rows = rails.filter((r) => r.sources.includes(providerInfo.id));
   return (
-    <Suspense fallback={<Container className="pb-24 pt-32"><MovieGridSkeleton /></Container>}>
-      <BrowseView section="movies" category="latest" searchParams={props.searchParams} showSearch />
-    </Suspense>
+    <>
+      <Suspense fallback={<BillboardSkeleton />}>
+        <BillboardSection />
+      </Suspense>
+      <div className="relative z-10 -mt-12 pb-8 md:-mt-16">
+        <ContinueWatching />
+        {rows.map((def) => (
+          <Suspense key={def.id} fallback={<RailSkeleton title={def.title} />}>
+            <RailRow def={def} />
+          </Suspense>
+        ))}
+      </div>
+    </>
   );
 }

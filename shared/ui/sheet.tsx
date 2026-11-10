@@ -17,7 +17,7 @@ function SheetContent({ className, children, ...props }: React.ComponentProps<ty
       <SheetPrimitive.Overlay className="fixed inset-0 z-50 bg-black/70 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0" />
       <SheetPrimitive.Content
         className={cn(
-          "fixed inset-y-0 right-0 z-50 flex h-full w-3/4 max-w-sm flex-col gap-6 border-l border-border bg-background p-8 duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+          "fixed inset-y-0 right-0 z-50 flex h-full w-3/4 max-w-sm flex-col gap-6 border-l border-border bg-background/95 p-8 backdrop-blur-xl duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
           className,
         )}
         {...props}

@@ -14,6 +14,10 @@ export type SectionDef = {
   /** First year offered as a per-year chip (when "yearChips" is enabled) */
   yearChipsFrom: number;
   genreLabel: string;
+  /** Restrict the language filter to these codes (e.g. Indian languages) */
+  languageCodes?: readonly string[];
+  /** Show languages as prominent pills instead of a dropdown */
+  languagePills?: boolean;
 };
 
 export const sections: Record<SectionId, SectionDef> = {
@@ -27,10 +31,22 @@ export const sections: Record<SectionId, SectionDef> = {
     yearChipsFrom: 2000,
     genreLabel: "Genres",
   },
+  indian: {
+    id: "indian",
+    title: "Indian Cinema",
+    nav: "Indian",
+    blurb: "Hindi, Tamil, Telugu, Bengali, Malayalam and more — Indian films, updated automatically.",
+    controls: ["sort", "year", "decade", "rating", "language", "genre"],
+    decadeFrom: 1950,
+    yearChipsFrom: 2000,
+    genreLabel: "Genres",
+    languageCodes: ["hi", "ta", "te", "bn", "ml", "kn", "pa", "mr", "ur", "gu"],
+    languagePills: true,
+  },
   serials: {
     id: "serials",
-    title: "Serials",
-    nav: "Serials",
+    title: "Series",
+    nav: "Series",
     blurb: "Series, serials and episodes to follow week after week.",
     controls: ["sort", "year", "decade", "rating", "country", "language", "genre"],
     decadeFrom: 1950,
@@ -59,15 +75,14 @@ export const sections: Record<SectionId, SectionDef> = {
   },
 };
 
-export const sectionList = Object.values(sections);
+export const sectionList = [sections.movies, sections.indian, sections.serials, sections.cartoons, sections.drama];
 
 export function isSection(value: string): value is SectionId {
   return value in sections;
 }
 
-/** Canonical URL of a section tab. Movies → Latest is the home page. */
+/** Canonical URL of a section tab. The home page ("/") is the rails view, not a section. */
 export function sectionHref(section: SectionId, category: MovieCategory): string {
-  if (section === "movies" && category === "latest") return "/";
   if (category === "latest") return `/${section}`;
   return `/${section}/${category}`;
 }

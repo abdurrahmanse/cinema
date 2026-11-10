@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  Gauge, Loader2, Maximize, Minimize, PictureInPicture2, Pause, Play, RotateCcw, RotateCw, Volume1, Volume2, VolumeX,
+  AlertTriangle, Gauge, Loader2, Maximize, Minimize, PictureInPicture2, Pause, Play, RotateCcw, RotateCw, Server,
+  Volume1, Volume2, VolumeX,
 } from "lucide-react";
+import { clearProgress, getProgress, saveProgress, type SavedItem } from "@/modules/library/store";
 import { formatClock } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import {
@@ -11,27 +13,41 @@ import {
 } from "@/shared/ui/dropdown-menu";
 import { Slider } from "@/shared/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/shared/ui/tooltip";
-import type { Playback } from "../types";
+import type { Playback, StreamSource } from "../types";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 const IDLE_MS = 2600;
+/** A server that stays in "buffering" this long is considered dead and we move to the next one. */
+const STALL_MS = 15_000;
 
-export function VideoPlayer({ playback, poster, title }: { playback: Playback; poster?: string | null; title: string }) {
-  if (playback.kind === "youtube") {
-    return (
-      <div className="aspect-video w-full bg-black ring-1 ring-border">
-        <iframe
-          src={`https://www.youtube-nocookie.com/embed/${playback.key}?rel=0&modestbranding=1`}
-          title={`${title} — ${playback.label}`}
-          loading="lazy"
-          allow="encrypted-media; picture-in-picture; fullscreen"
-          allowFullScreen
-          className="h-full w-full"
-        />
-      </div>
-    );
-  }
-  return <NativePlayer src={playback.url} hls={playback.kind === "hls"} poster={poster} title={title} />;
+export function VideoPlayer({
+  playback,
+  poster,
+  title,
+  meta,
+}: {
+  playback: Playback;
+  poster?: string | null;
+  title: string;
+  meta: SavedItem;
+}) {
+  if (playback.kind === "youtube") return <YouTubeEmbed id={playback.key} title={`${title} — ${playback.label}`} />;
+  return <StreamPlayer sources={playback.sources} trailerKey={playback.trailerKey} poster={poster} title={title} meta={meta} />;
+}
+
+function YouTubeEmbed({ id, title }: { id: string; title: string }) {
+  return (
+    <div className="aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10">
+      <iframe
+        src={`https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1`}
+        title={title}
+        loading="lazy"
+        allow="encrypted-media; picture-in-picture; fullscreen"
+        allowFullScreen
+        className="h-full w-full"
+      />
+    </div>
+  );
 }
 
 function Control({ label, onClick, children }: { label: string; onClick: () => void; children: React.ReactNode }) {
@@ -51,13 +67,35 @@ function Control({ label, onClick, children }: { label: string; onClick: () => v
   );
 }
 
-function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; poster?: string | null; title: string }) {
+function StreamPlayer({
+  sources,
+  trailerKey,
+  poster,
+  title,
+  meta,
+}: {
+  sources: StreamSource[];
+  trailerKey?: string | null;
+  poster?: string | null;
+  title: string;
+  meta: SavedItem;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
   const idleTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const lastSaved = useRef(0);
   const dragging = useRef(false);
+  const idxRef = useRef(0);
+  const wantPlay = useRef(false);
+  /** Where to continue after switching server / retrying */
+  const resume = useRef<{ t: number; play: boolean } | null>(null);
+  const hlsErrors = useRef(0);
+
+  const [idx, setIdx] = useState(0);
+  const [allFailed, setAllFailed] = useState(false);
+  const [showTrailer, setShowTrailer] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [started, setStarted] = useState(false);
@@ -70,32 +108,108 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
   const [muted, setMuted] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [fullscreen, setFullscreen] = useState(false);
-  const [error, setError] = useState(false);
   const [uiVisible, setUiVisible] = useState(true);
   const [hover, setHover] = useState<{ pct: number; t: number } | null>(null);
   const [flash, setFlash] = useState<{ side: "left" | "right"; id: number } | null>(null);
-  const [resumeAt, setResumeAt] = useState<number | null>(null);
-  // Menu portals into the player so it stays visible in fullscreen
+  const [resumeAt, setResumeAt] = useState<number | null>(() => {
+    if (typeof window === "undefined") return null;
+    const saved = getProgress(meta);
+    return saved && saved.position > 15 ? saved.position : null;
+  });
   const [wrapEl, setWrapEl] = useState<HTMLDivElement | null>(null);
 
-  const storageKey = `cinema:pos:${src}`;
+  const source = sources[idx];
 
-  // ---- HLS: native on Safari, hls.js elsewhere
+  useEffect(() => {
+    idxRef.current = idx;
+  }, [idx]);
+
+  // ---- server failover ---------------------------------------------------
+  const failover = useCallback(
+    (reason: string) => {
+      const v = videoRef.current;
+      resume.current = { t: v?.currentTime ?? 0, play: wantPlay.current };
+      const next = idxRef.current + 1;
+      if (next < sources.length) {
+        hlsErrors.current = 0;
+        setNotice(`${reason} — switching to ${sources[next].label}…`);
+        setBuffering(true);
+        setIdx(next);
+      } else {
+        setBuffering(false);
+        setPlaying(false);
+        setAllFailed(true);
+      }
+    },
+    [sources],
+  );
+
+  const chooseServer = (value: string) => {
+    const next = Number(value);
+    if (next === idxRef.current) return;
+    const v = videoRef.current;
+    resume.current = { t: v?.currentTime ?? 0, play: wantPlay.current || !!v && !v.paused };
+    setNotice(`Connecting to ${sources[next].label}…`);
+    setBuffering(true);
+    setAllFailed(false);
+    setIdx(next);
+  };
+
+  const retryAll = () => {
+    resume.current = { t: videoRef.current?.currentTime ?? 0, play: true };
+    setAllFailed(false);
+    setNotice("Reconnecting…");
+    setBuffering(true);
+    setIdx(0);
+  };
+
+  // The <video> can fail before React hydrates (events are then missed) — check on mount and on every source change.
+  useEffect(() => {
+    const v = videoRef.current;
+    if (!v || source.type === "hls") return;
+    const t = setTimeout(() => {
+      if (v.error) failover("Server unavailable");
+    }, 0);
+    return () => clearTimeout(t);
+  }, [source.url, source.type, failover]);
+
+  // Stall watchdog: stuck buffering on a server -> try the next one
+  useEffect(() => {
+    if (!buffering || allFailed) return;
+    const t = setTimeout(() => failover("Server is not responding"), STALL_MS);
+    return () => clearTimeout(t);
+  }, [buffering, allFailed, idx, failover]);
+
+  // ---- HLS (native on Safari, hls.js elsewhere) ---------------------------
   useEffect(() => {
     const video = videoRef.current;
-    if (!video || !hls || video.canPlayType("application/vnd.apple.mpegurl")) return;
+    if (!video || source.type !== "hls" || video.canPlayType("application/vnd.apple.mpegurl")) return;
     let instance: { destroy(): void } | undefined;
+    let cancelled = false;
     import("hls.js").then(({ default: Hls }) => {
-      if (!Hls.isSupported()) return setError(true);
-      const h = new Hls();
-      h.loadSource(src);
+      if (cancelled) return;
+      if (!Hls.isSupported()) return failover("Playback is not supported");
+      const h = new Hls({ maxBufferLength: 30, enableWorker: true });
+      h.loadSource(source.url);
       h.attachMedia(video);
-      h.on(Hls.Events.ERROR, (_, data) => data.fatal && setError(true));
+      h.on(Hls.Events.ERROR, (_, data) => {
+        if (!data.fatal) return;
+        // Try in-place recovery once before changing server
+        if (hlsErrors.current++ < 2) {
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) return h.startLoad();
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR) return h.recoverMediaError();
+        }
+        failover("Stream error");
+      });
       instance = h;
     });
-    return () => instance?.destroy();
-  }, [src, hls]);
+    return () => {
+      cancelled = true;
+      instance?.destroy();
+    };
+  }, [source.url, source.type, failover]);
 
+  // ---- misc effects -------------------------------------------------------
   useEffect(() => {
     const onChange = () => setFullscreen(document.fullscreenElement === wrapRef.current);
     document.addEventListener("fullscreenchange", onChange);
@@ -104,7 +218,19 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
 
   useEffect(() => () => clearTimeout(idleTimer.current), []);
 
-  // ---- controls visibility (auto-hide while playing)
+  // Save position when leaving the page
+  useEffect(() => {
+    const flush = () => {
+      const v = videoRef.current;
+      if (v && v.currentTime > 5) saveProgress(meta, v.currentTime, v.duration);
+    };
+    window.addEventListener("pagehide", flush);
+    return () => {
+      flush();
+      window.removeEventListener("pagehide", flush);
+    };
+  }, [meta]);
+
   const wake = useCallback(() => {
     setUiVisible(true);
     clearTimeout(idleTimer.current);
@@ -113,13 +239,22 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     }, IDLE_MS);
   }, []);
 
-  // ---- actions
+  // ---- actions ------------------------------------------------------------
   const toggle = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused || v.ended) v.play().catch(() => setError(true));
-    else v.pause();
-  }, []);
+    if (v.paused || v.ended) {
+      wantPlay.current = true;
+      if (v.error) return failover("Server unavailable");
+      v.play().catch(() => {
+        if (v.error) failover("Server unavailable");
+        /* otherwise autoplay policy / interrupted — user can press play again */
+      });
+    } else {
+      wantPlay.current = false;
+      v.pause();
+    }
+  }, [failover]);
 
   const seekTo = useCallback((t: number) => {
     const v = videoRef.current;
@@ -129,12 +264,15 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     setTime(next);
   }, []);
 
-  const skip = useCallback((delta: number) => {
-    const v = videoRef.current;
-    if (!v) return;
-    seekTo(v.currentTime + delta);
-    setFlash({ side: delta > 0 ? "right" : "left", id: Date.now() });
-  }, [seekTo]);
+  const skip = useCallback(
+    (delta: number) => {
+      const v = videoRef.current;
+      if (!v) return;
+      seekTo(v.currentTime + delta);
+      setFlash({ side: delta > 0 ? "right" : "left", id: Date.now() });
+    },
+    [seekTo],
+  );
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) document.exitFullscreen();
@@ -147,7 +285,9 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     try {
       if (document.pictureInPictureElement) await document.exitPictureInPicture();
       else await v.requestPictureInPicture();
-    } catch { /* unsupported */ }
+    } catch {
+      /* unsupported */
+    }
   }, []);
 
   const changeVolume = useCallback((delta: number) => {
@@ -163,21 +303,14 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     setSpeed(rate);
   };
 
-  // ---- keyboard
   const onKeyDown = (e: React.KeyboardEvent) => {
     if ((e.target as HTMLElement).closest('[role="slider"], [role="menu"]') && e.key.startsWith("Arrow")) return;
     const keyActions: Record<string, () => void> = {
-      " ": toggle,
-      k: toggle,
-      ArrowRight: () => skip(10),
-      l: () => skip(10),
-      ArrowLeft: () => skip(-10),
-      j: () => skip(-10),
-      ArrowUp: () => changeVolume(0.1),
-      ArrowDown: () => changeVolume(-0.1),
-      m: () => setMuted((m) => !m),
-      f: toggleFullscreen,
-      p: togglePip,
+      " ": toggle, k: toggle,
+      ArrowRight: () => skip(10), l: () => skip(10),
+      ArrowLeft: () => skip(-10), j: () => skip(-10),
+      ArrowUp: () => changeVolume(0.1), ArrowDown: () => changeVolume(-0.1),
+      m: () => setMuted((m) => !m), f: toggleFullscreen, p: togglePip,
     };
     const action = keyActions[e.key];
     if (action) {
@@ -190,7 +323,7 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     }
   };
 
-  // ---- seek bar (pointer drag + hover preview)
+  // ---- seek bar -----------------------------------------------------------
   const ratioFromPointer = (clientX: number) => {
     const rect = barRef.current?.getBoundingClientRect();
     if (!rect || !rect.width) return 0;
@@ -203,7 +336,6 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     if (dragging.current) seekTo(pct * duration);
   };
 
-  // ---- double-tap zones
   const onSurfaceDoubleClick = (e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const x = (e.clientX - rect.left) / rect.width;
@@ -212,22 +344,19 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     else toggleFullscreen();
   };
 
-  // ---- resume position
-  const persist = (t: number) => {
-    if (Math.abs(t - lastSaved.current) < 5) return;
-    lastSaved.current = t;
-    try {
-      localStorage.setItem(storageKey, String(Math.floor(t)));
-    } catch { /* storage blocked */ }
-  };
-
+  // ---- video events -------------------------------------------------------
   const onLoadedMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
-    const d = e.currentTarget.duration;
-    setDuration(d);
-    try {
-      const saved = Number(localStorage.getItem(storageKey));
-      if (saved > 15 && saved < d * 0.95) setResumeAt(saved);
-    } catch { /* storage blocked */ }
+    const v = e.currentTarget;
+    setDuration(v.duration);
+    setBuffering(false); // metadata arrived: the server is alive (waiting/stalled will set it again if needed)
+    setNotice(null);
+    v.playbackRate = speed;
+    if (resume.current) {
+      const { t, play } = resume.current;
+      resume.current = null;
+      if (t > 0) v.currentTime = t;
+      if (play) v.play().catch(() => {});
+    }
   };
 
   const updateBuffered = (v: HTMLVideoElement) => {
@@ -237,11 +366,23 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
     }
   };
 
+  const onTimeUpdate = (v: HTMLVideoElement) => {
+    if (!dragging.current) setTime(v.currentTime);
+    updateBuffered(v);
+    if (Math.abs(v.currentTime - lastSaved.current) >= 5) {
+      lastSaved.current = v.currentTime;
+      saveProgress(meta, v.currentTime, v.duration);
+    }
+  };
+
   const isMuted = muted || volume === 0;
   const VolumeIcon = isMuted ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const playedPct = duration ? (time / duration) * 100 : 0;
   const bufferedPct = duration ? (buffered / duration) * 100 : 0;
   const showUi = uiVisible || !playing || ended;
+
+  // Last resort: trailer
+  if (showTrailer && trailerKey) return <YouTubeEmbed id={trailerKey} title={`${title} — trailer`} />;
 
   return (
     <TooltipProvider>
@@ -257,46 +398,36 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
         onPointerMove={wake}
         onPointerLeave={() => playing && setUiVisible(false)}
         className={cn(
-          "group relative aspect-video w-full overflow-hidden bg-black ring-1 ring-border outline-none select-none",
+          "group relative aspect-video w-full overflow-hidden rounded-xl bg-black shadow-2xl shadow-black/60 ring-1 ring-white/10 outline-none select-none",
           !showUi && "cursor-none",
           fullscreen && "ring-0",
         )}
       >
         <video
           ref={videoRef}
-          src={hls ? undefined : src}
+          src={source.type === "hls" ? undefined : source.url}
           poster={poster ?? undefined}
           preload="metadata"
           playsInline
           muted={muted}
-          onPlay={() => { setPlaying(true); setStarted(true); setEnded(false); setResumeAt(null); wake(); }}
+          onPlay={() => { wantPlay.current = true; setPlaying(true); setStarted(true); setEnded(false); setResumeAt(null); wake(); }}
           onPause={() => { setPlaying(false); setUiVisible(true); }}
-          onEnded={() => { setEnded(true); setPlaying(false); try { localStorage.removeItem(storageKey); } catch { /* noop */ } }}
+          onEnded={() => { wantPlay.current = false; setEnded(true); setPlaying(false); clearProgress(meta); }}
           onWaiting={() => setBuffering(true)}
-          onCanPlay={() => setBuffering(false)}
-          onPlaying={() => setBuffering(false)}
+          onStalled={() => wantPlay.current && setBuffering(true)}
+          onCanPlay={() => { setBuffering(false); setNotice(null); }}
+          onPlaying={() => { setBuffering(false); setNotice(null); }}
           onProgress={(e) => updateBuffered(e.currentTarget)}
-          onTimeUpdate={(e) => {
-            if (!dragging.current) setTime(e.currentTarget.currentTime);
-            updateBuffered(e.currentTarget);
-            persist(e.currentTarget.currentTime);
-          }}
+          onTimeUpdate={(e) => onTimeUpdate(e.currentTarget)}
           onLoadedMetadata={onLoadedMetadata}
           onVolumeChange={(e) => setVolume(e.currentTarget.volume)}
-          onError={() => setError(true)}
+          onError={() => failover("Playback error")}
           className="h-full w-full object-contain"
         />
 
         {/* click / double-click surface */}
-        <div
-          className="absolute inset-0"
-          onClick={(e) => {
-            if (e.detail === 1) toggle();
-          }}
-          onDoubleClick={onSurfaceDoubleClick}
-        />
+        <div className="absolute inset-0" onClick={(e) => e.detail === 1 && toggle()} onDoubleClick={onSurfaceDoubleClick} />
 
-        {/* skip flash */}
         {flash && (
           <div
             key={flash.id}
@@ -311,36 +442,63 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
           </div>
         )}
 
-        {/* title (top) */}
         <div
           className={cn(
-            "pointer-events-none absolute inset-x-0 top-0 bg-gradient-to-b from-black/80 to-transparent px-6 pb-12 pt-5 transition-opacity duration-300",
+            "pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between bg-gradient-to-b from-black/80 to-transparent px-6 pb-12 pt-5 transition-opacity duration-300",
             showUi && started ? "opacity-100" : "opacity-0",
           )}
         >
-          <p className="font-serif text-xl text-white/90">{title}</p>
+          <p className="font-display text-lg font-bold text-white/90">{title}</p>
+          {sources.length > 1 && <span className="text-xs font-medium text-white/60">{source.label}</span>}
         </div>
 
-        {/* big play / replay / error / spinner */}
-        {error ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/85 p-6 text-center font-serif text-xl text-muted-foreground">
-            This film can’t be played right now.
+        {/* switching-server notice */}
+        {notice && !allFailed && (
+          <div className="pointer-events-none absolute inset-x-0 top-6 flex justify-center">
+            <span className="flex items-center gap-2 rounded-full bg-black/70 px-4 py-2 text-sm font-medium text-white backdrop-blur-md">
+              <Loader2 className="size-3.5 animate-spin" /> {notice}
+            </span>
           </div>
-        ) : buffering && playing ? (
+        )}
+
+        {/* big overlays */}
+        {allFailed ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black/90 p-6 text-center">
+            <AlertTriangle className="size-9 text-primary" />
+            <p className="max-w-md font-display text-2xl font-bold">We couldn’t reach any server for this film.</p>
+            <p className="max-w-md text-sm text-muted-foreground">Check your connection and try again — we’ll reconnect from the start of the list.</p>
+            <div className="flex flex-wrap justify-center gap-3">
+              <button
+                onClick={retryAll}
+                className="rounded-md bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary/90"
+              >
+                Try again
+              </button>
+              {trailerKey && (
+                <button
+                  onClick={() => setShowTrailer(true)}
+                  className="rounded-md bg-white/10 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/20"
+                >
+                  Watch trailer instead
+                </button>
+              )}
+            </div>
+          </div>
+        ) : buffering && (playing || notice) ? (
           <Loader2 className="pointer-events-none absolute inset-0 m-auto size-12 animate-spin text-primary" aria-label="Buffering" />
         ) : !playing ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 bg-black/30">
             <button
               onClick={toggle}
               aria-label={ended ? "Replay" : "Play"}
-              className="flex size-24 items-center justify-center rounded-full border border-primary/70 bg-black/40 text-primary shadow-[0_0_60px_-10px] shadow-primary/60 backdrop-blur-md transition-all duration-300 hover:scale-105 hover:bg-primary hover:text-primary-foreground"
+              className="flex size-20 items-center justify-center rounded-full bg-primary text-white shadow-[0_0_60px_-8px] shadow-primary/70 transition-all duration-300 hover:scale-110 md:size-24"
             >
               {ended ? <RotateCcw className="size-9" /> : <Play className="size-9 translate-x-0.5 fill-current" />}
             </button>
             {resumeAt && !started && (
               <button
-                onClick={() => { seekTo(resumeAt); toggle(); }}
-                className="border border-white/20 bg-black/50 px-5 py-2 text-[11px] uppercase tracking-[0.22em] text-white/90 backdrop-blur-md transition-colors hover:border-primary hover:text-primary"
+                onClick={() => { resume.current = { t: resumeAt, play: true }; toggle(); }}
+                className="rounded-full bg-black/60 px-5 py-2 text-sm font-medium text-white backdrop-blur-md transition-colors hover:bg-black/80"
               >
                 Resume from {formatClock(resumeAt)}
               </button>
@@ -352,10 +510,9 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
         <div
           className={cn(
             "absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent px-4 pb-4 pt-16 transition-all duration-300 sm:px-6",
-            showUi ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",
+            showUi && !allFailed ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-2 opacity-0",
           )}
         >
-          {/* seek bar */}
           <div
             ref={barRef}
             role="slider"
@@ -385,7 +542,7 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
             </div>
             {hover && duration > 0 && (
               <span
-                className="pointer-events-none absolute -top-7 -translate-x-1/2 border border-white/10 bg-black/80 px-2 py-0.5 text-[11px] tabular-nums tracking-wider text-white backdrop-blur-md"
+                className="pointer-events-none absolute -top-8 -translate-x-1/2 rounded-md bg-black/80 px-2 py-1 text-xs font-medium tabular-nums text-white backdrop-blur-md"
                 style={{ left: `${hover.pct * 100}%` }}
               >
                 {formatClock(hover.t)}
@@ -424,6 +581,29 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
 
             <span className="flex-1" />
 
+            {sources.length > 1 && (
+              <DropdownMenu>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <DropdownMenuTrigger asChild>
+                      <button aria-label="Choose server" className="flex h-10 items-center gap-1.5 px-2 text-white/85 transition-colors hover:text-primary">
+                        <Server className="size-5" />
+                      </button>
+                    </DropdownMenuTrigger>
+                  </TooltipTrigger>
+                  <TooltipContent>Server</TooltipContent>
+                </Tooltip>
+                <DropdownMenuContent align="end" container={wrapEl}>
+                  <DropdownMenuLabel>Server</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={String(idx)} onValueChange={chooseServer}>
+                    {sources.map((s, i) => (
+                      <DropdownMenuRadioItem key={s.url} value={String(i)}>{s.label}</DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+
             <DropdownMenu>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -443,9 +623,7 @@ function NativePlayer({ src, hls, poster, title }: { src: string; hls: boolean; 
                 <DropdownMenuLabel>Speed</DropdownMenuLabel>
                 <DropdownMenuRadioGroup value={String(speed)} onValueChange={changeSpeed}>
                   {SPEEDS.map((s) => (
-                    <DropdownMenuRadioItem key={s} value={String(s)}>
-                      {s === 1 ? "Normal" : `${s}×`}
-                    </DropdownMenuRadioItem>
+                    <DropdownMenuRadioItem key={s} value={String(s)}>{s === 1 ? "Normal" : `${s}×`}</DropdownMenuRadioItem>
                   ))}
                 </DropdownMenuRadioGroup>
               </DropdownMenuContent>

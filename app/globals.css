@@ -2,30 +2,31 @@
 @import "tw-animate-css";
 
 /*
- * Design system — Classicism × Minimalism.
- * shadcn/ui token contract (Radix-style semantic variables).
- * Warm ink surfaces, ivory type, one muted-gold primary.
+ * Design system — premium streaming (Netflix / Prime Video / MovieBox class).
+ * shadcn/ui + Radix semantic tokens. Near-black cinematic surfaces, one rose primary,
+ * warm amber for ratings.
  */
 :root {
-  --radius: 0rem; /* classical: square edges, hairline borders */
-  --background: #0d0c0b;
-  --foreground: #ece6da;
-  --card: #161412;
-  --card-foreground: #ece6da;
-  --popover: #161412;
-  --popover-foreground: #ece6da;
-  --primary: #c0a062;
-  --primary-foreground: #0d0c0b;
-  --secondary: #1d1a17;
-  --secondary-foreground: #ece6da;
-  --muted: #1d1a17;
-  --muted-foreground: #968d7d;
-  --accent: #221e1a;
-  --accent-foreground: #c0a062;
-  --destructive: #b5533c;
-  --border: rgb(236 230 218 / 0.13);
-  --input: rgb(236 230 218 / 0.18);
-  --ring: #c0a062;
+  --radius: 0.75rem;
+  --background: #09090d;
+  --foreground: #f4f4f6;
+  --card: #13131a;
+  --card-foreground: #f4f4f6;
+  --popover: #15151d;
+  --popover-foreground: #f4f4f6;
+  --primary: #f43f5e;
+  --primary-foreground: #ffffff;
+  --secondary: #1c1c26;
+  --secondary-foreground: #f4f4f6;
+  --muted: #1c1c26;
+  --muted-foreground: #9b9bab;
+  --accent: #22222e;
+  --accent-foreground: #ffffff;
+  --destructive: #ef4444;
+  --border: rgb(255 255 255 / 0.09);
+  --input: rgb(255 255 255 / 0.14);
+  --ring: #f43f5e;
+  --rating: #fbbf24;
   color-scheme: dark;
 }
 
@@ -48,28 +49,45 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 2px);
-  --radius-md: var(--radius);
+  --color-rating: var(--rating);
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
   --font-sans: var(--font-inter);
-  --font-serif: var(--font-cormorant);
+  --font-display: var(--font-jakarta);
 }
 
 @layer base {
   * {
     border-color: var(--border);
   }
+  html {
+    scroll-behavior: smooth;
+  }
   body {
     background: var(--background);
     color: var(--foreground);
     font-family: var(--font-inter), system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 {
+    font-family: var(--font-jakarta), var(--font-inter), system-ui, sans-serif;
+    letter-spacing: -0.02em;
   }
   ::selection {
     background: var(--primary);
     color: var(--primary-foreground);
   }
   :focus-visible {
-    outline: 1px solid var(--ring);
-    outline-offset: 3px;
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
+@utility scrollbar-none {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
   }
 }

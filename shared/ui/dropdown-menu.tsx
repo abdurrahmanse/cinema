@@ -20,7 +20,7 @@ function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          "z-50 min-w-36 border border-white/10 bg-[#121110]/85 p-1 text-popover-foreground shadow-2xl shadow-black/60 backdrop-blur-xl backdrop-saturate-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          "z-50 min-w-36 rounded-xl border border-white/10 bg-[#15151d]/90 p-1.5 text-popover-foreground shadow-2xl shadow-black/60 backdrop-blur-xl backdrop-saturate-150 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}
@@ -30,14 +30,14 @@ function DropdownMenuContent({
 }
 
 function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>) {
-  return <DropdownMenuPrimitive.Label className={cn("px-3 py-2 text-[10px] uppercase tracking-[0.25em] text-muted-foreground", className)} {...props} />;
+  return <DropdownMenuPrimitive.Label className={cn("px-3 py-2 text-xs font-semibold text-muted-foreground", className)} {...props} />;
 }
 
 function DropdownMenuRadioItem({ className, children, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
   return (
     <DropdownMenuPrimitive.RadioItem
       className={cn(
-        "relative flex cursor-pointer items-center justify-between gap-6 px-3 py-2 text-sm outline-none select-none data-[highlighted]:bg-white/10 data-[state=checked]:text-primary",
+        "relative flex cursor-pointer items-center justify-between gap-6 rounded-md px-3 py-2 text-sm outline-none select-none data-[highlighted]:bg-white/10 data-[state=checked]:text-primary",
         className,
       )}
       {...props}

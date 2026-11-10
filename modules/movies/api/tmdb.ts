@@ -1,3 +1,4 @@
+import { fetchJson } from "./http";
 import type {
   Country, Genre, ItemKind, Language, Movie, MovieCategory, MovieFilters, MovieProvider, Paginated, Playback,
   SectionId,
@@ -5,15 +6,23 @@ import type {
 
 const BASE_URL = process.env.MOVIE_API_BASE_URL ?? "https://api.themoviedb.org/3";
 const TOKEN = process.env.MOVIE_API_TOKEN;
-/** Optional: your own licensed full-film source, e.g. https://cdn.example.com/{id}/master.m3u8 */
-const STREAM_TEMPLATE = process.env.MOVIE_STREAM_URL_TEMPLATE;
+/**
+ * Optional: your own licensed full-film servers, comma-separated, tried in order, e.g.
+ * https://cdn1.example.com/{id}/master.m3u8,https://cdn2.example.com/{id}.mp4
+ */
+const STREAM_TEMPLATES = (process.env.MOVIE_STREAM_URL_TEMPLATE ?? "")
+  .split(",")
+  .map((t) => t.trim())
+  .filter(Boolean);
 
 export const hasApiToken = Boolean(TOKEN);
 
 /** Which TMDB catalogue backs each section. */
-const KIND: Record<SectionId, ItemKind> = { movies: "movie", serials: "tv", cartoons: "movie", drama: "tv" };
+const KIND: Record<SectionId, ItemKind> = { movies: "movie", indian: "movie", serials: "tv", cartoons: "movie", drama: "tv" };
 /** Sections that are a fixed genre of a catalogue (cartoons = Animation films, drama = Drama series). */
 const BASE_GENRE: Partial<Record<SectionId, string>> = { cartoons: "16", drama: "18" };
+/** Indian cinema = films originating in India (language is a filter on top). */
+const BASE_COUNTRY: Partial<Record<SectionId, string>> = { indian: "IN" };
 /** Genre slugs offered inside the constrained sections. */
 const SECTION_GENRE_SLUGS: Partial<Record<SectionId, string[]>> = {
   cartoons: ["comedy", "family", "adventure", "fantasy", "science-fiction", "music", "action", "mystery", "romance"],
@@ -55,10 +64,12 @@ async function request<T>(path: string, params: Record<string, string | number> 
   const url = new URL(`${BASE_URL}${path}`);
   url.searchParams.set("language", "en-US");
   for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${TOKEN}`, accept: "application/json" } });
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Movie API ${res.status} for ${path}`);
-  return (await res.json()) as T;
+  const { status, data } = await fetchJson<T>(url, {
+    headers: { Authorization: `Bearer ${TOKEN}`, accept: "application/json" },
+  });
+  if (status === 404) return null;
+  if (!data) throw new Error(`Movie API ${status} for ${path}`);
+  return data;
 }
 
 function toItem(raw: RawItem, kind: ItemKind): Movie {
@@ -101,7 +112,7 @@ const sortParam = {
 } as const;
 
 const hasFilters = (f: MovieFilters, section: SectionId) =>
-  Boolean(BASE_GENRE[section]) ||
+  Boolean(BASE_GENRE[section]) || Boolean(BASE_COUNTRY[section]) ||
   f.genres.length > 0 || f.yearFrom !== undefined || f.yearTo !== undefined || f.minRating !== undefined ||
   f.sort !== undefined || f.language !== undefined || f.country !== undefined;
 
@@ -117,7 +128,8 @@ function discoverParams(section: SectionId, category: MovieCategory, f: MovieFil
   else if (f.genres.length) params.with_genres = f.genres.join("|"); // any of picked
 
   if (f.language) params.with_original_language = f.language;
-  if (f.country) params.with_origin_country = f.country;
+  const country = BASE_COUNTRY[section] ?? f.country;
+  if (country) params.with_origin_country = country;
 
   let gte = f.yearFrom ? `${f.yearFrom}-01-01` : undefined;
   let lte = f.yearTo ? `${f.yearTo}-12-31` : undefined;
@@ -155,14 +167,20 @@ type RawDetail = RawItem & {
 };
 
 function resolvePlayback(kind: ItemKind, id: string, raw: RawDetail): Playback | null {
-  if (STREAM_TEMPLATE && kind === "movie") {
-    const url = STREAM_TEMPLATE.replaceAll("{id}", id);
-    return url.includes(".m3u8")
-      ? { kind: "hls", url, label: "Full film" }
-      : { kind: "file", url, label: "Full film" };
-  }
   const yt = raw.videos?.results?.filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser")) ?? [];
   const trailer = yt.find((v) => v.type === "Trailer" && v.official) ?? yt.find((v) => v.type === "Trailer") ?? yt[0];
+
+  if (STREAM_TEMPLATES.length && kind === "movie") {
+    return {
+      kind: "stream",
+      label: "Full film",
+      trailerKey: trailer?.key ?? null,
+      sources: STREAM_TEMPLATES.map((t, i) => {
+        const url = t.replaceAll("{id}", id);
+        return { url, type: url.includes(".m3u8") ? "hls" : "file", label: `Server ${i + 1}` } as const;
+      }),
+    };
+  }
   return trailer ? { kind: "youtube", key: trailer.key, label: "Official trailer" } : null;
 }
 
@@ -187,6 +205,8 @@ const LANGUAGES: Language[] = [
   { code: "ja", name: "Japanese" }, { code: "zh", name: "Chinese" }, { code: "fr", name: "French" },
   { code: "es", name: "Spanish" }, { code: "de", name: "German" }, { code: "it", name: "Italian" },
   { code: "tr", name: "Turkish" }, { code: "ar", name: "Arabic" }, { code: "ru", name: "Russian" },
+  { code: "ml", name: "Malayalam" }, { code: "kn", name: "Kannada" }, { code: "pa", name: "Punjabi" },
+  { code: "mr", name: "Marathi" }, { code: "ur", name: "Urdu" }, { code: "gu", name: "Gujarati" }, { code: "th", name: "Thai" },
 ];
 
 export const tmdbProvider: MovieProvider = {

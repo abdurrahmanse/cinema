@@ -1,28 +1,16 @@
 import Link from "next/link";
+import { ChevronRight } from "lucide-react";
 
-export function SectionHeading({
-  title,
-  eyebrow,
-  href,
-  linkLabel = "View all",
-}: {
-  title: string;
-  eyebrow?: string;
-  href?: string;
-  linkLabel?: string;
-}) {
+export function SectionHeading({ title, eyebrow, href, linkLabel = "See all" }: { title: string; eyebrow?: string; href?: string; linkLabel?: string }) {
   return (
-    <div className="mb-8 flex items-end justify-between gap-6 border-b border-border pb-4">
+    <div className="mb-5 flex items-end justify-between gap-6">
       <div>
-        {eyebrow && <p className="mb-2 text-[11px] uppercase tracking-[0.28em] text-primary">{eyebrow}</p>}
-        <h2 className="font-serif text-3xl md:text-4xl">{title}</h2>
+        {eyebrow && <p className="mb-1 text-sm font-semibold text-primary">{eyebrow}</p>}
+        <h2 className="font-display text-2xl font-bold">{title}</h2>
       </div>
       {href && (
-        <Link
-          href={href}
-          className="shrink-0 text-xs uppercase tracking-[0.2em] text-muted-foreground transition-colors hover:text-primary"
-        >
-          {linkLabel} →
+        <Link href={href} className="flex shrink-0 items-center text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+          {linkLabel} <ChevronRight className="size-4" />
         </Link>
       )}
     </div>
