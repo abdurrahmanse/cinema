@@ -1,36 +1,37 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cinéma
 
-## Getting Started
+A minimal, classical movie website. No backend, no uploads — films come from a movie API and new releases appear automatically.
 
-First, run the development server:
+## Setup
 
 ```bash
+cp .env.example .env.local   # then set MOVIE_API_TOKEN
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without `MOVIE_API_TOKEN` the site runs on built-in demo data (a banner tells you so).
+Default provider: [TMDB](https://www.themoviedb.org/) v3 (use the *API Read Access Token*).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Structure (modular monolith)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```
+app/                    routing only (thin pages)
+modules/movies/
+  api/                  providers: tmdb.ts, mock.ts  (swap the API here only)
+  services/             cached data access ('use cache' + cacheLife)
+  components/           hero, card, grid, detail …
+  types.ts, categories.ts, image.ts
+shared/
+  ui/ layout/ lib/ config/   design-system primitives, header/footer, formatters, site config
+```
 
-## Learn More
+To use a different API, implement the `MovieProvider` interface (`modules/movies/types.ts`) and select it in `services/movie-service.ts`.
 
-To learn more about Next.js, take a look at the following resources:
+## Freshness
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Lists are cached for ~1 hour (`cacheLife("hours")`), so new releases show up on their own. Call `revalidateTag("movies")` to force a refresh.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Design system
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Minimalism × classicism: Cormorant Garamond (serif) + Inter, warm ink background, ivory text, a single muted-gold accent, hairline borders, generous whitespace. Tokens live in `app/globals.css`.
