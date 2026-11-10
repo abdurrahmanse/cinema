@@ -2,6 +2,7 @@ import { Suspense } from "react";
 import type { Metadata } from "next";
 import { MovieGrid, MovieGridSkeleton } from "@/modules/movies/components/movie-grid";
 import { searchMovies } from "@/modules/movies/services/movie-service";
+import { SearchBox } from "@/modules/movies/components/search-box";
 import { Container } from "@/shared/ui/container";
 import { Pagination } from "@/shared/ui/pagination";
 
@@ -19,6 +20,7 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
   const data = await searchMovies(q, page);
   return (
     <>
+      <div className="mb-12 max-w-2xl"><SearchBox variant="hero" /></div>
       <h1 className="mb-14 font-serif text-4xl md:text-5xl">
         Results for <span className="text-primary">“{q}”</span>
       </h1>
@@ -34,7 +36,7 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
 
 export default function SearchPage(props: PageProps<"/search">) {
   return (
-    <Container className="pb-24 pt-40">
+    <Container className="pb-24 pt-28 md:pt-32">
       <Suspense fallback={<MovieGridSkeleton />}>
         <Results searchParams={props.searchParams} />
       </Suspense>

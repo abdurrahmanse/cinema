@@ -1,5 +1,5 @@
 import type {
-  Genre, Movie, MovieCategory, MovieProvider, Paginated, Playback,
+  Country, Genre, Movie, MovieCategory, Language, MovieFilters, MovieProvider, Paginated, Playback,
 } from "../types";
 
 const BASE_URL = process.env.MOVIE_API_BASE_URL ?? "https://api.themoviedb.org/3";
@@ -57,20 +57,42 @@ function toPage(raw: RawList | null, page: number): Paginated<Movie> {
   return { results: raw.results.map(toMovie), page: raw.page, totalPages: Math.min(raw.total_pages, 500) };
 }
 
-/** Genre-filtered lists use /discover with a sort that mirrors each category. */
-function discoverParams(category: MovieCategory, genre: string): Record<string, string | number> {
+const sortParam = {
+  popularity: "popularity.desc",
+  rating: "vote_average.desc",
+  newest: "primary_release_date.desc",
+  oldest: "primary_release_date.asc",
+} as const;
+
+export const hasFilters = (f: MovieFilters) =>
+  f.genres.length > 0 || f.yearFrom !== undefined || f.yearTo !== undefined || f.minRating !== undefined || f.sort !== undefined || f.language !== undefined || f.country !== undefined;
+
+/** Any active filter switches to /discover; category semantics are preserved as defaults/constraints. */
+function discoverParams(category: MovieCategory, f: MovieFilters): Record<string, string | number> {
   const today = new Date().toISOString().slice(0, 10);
-  const base = { with_genres: genre, include_adult: "false" };
-  switch (category) {
-    case "latest":
-      return { ...base, sort_by: "primary_release_date.desc", "primary_release_date.lte": today, "vote_count.gte": 10 };
-    case "upcoming":
-      return { ...base, sort_by: "primary_release_date.asc", "primary_release_date.gte": today };
-    case "top-rated":
-      return { ...base, sort_by: "vote_average.desc", "vote_count.gte": 300 };
-    default:
-      return { ...base, sort_by: "popularity.desc" };
-  }
+  const params: Record<string, string | number> = { include_adult: "false" };
+
+  if (f.genres.length) params.with_genres = f.genres.join("|"); // OR
+  if (f.language) params.with_original_language = f.language;
+  if (f.country) params.with_origin_country = f.country;
+
+  // date window = user range ∩ category constraint
+  let gte = f.yearFrom ? `${f.yearFrom}-01-01` : undefined;
+  let lte = f.yearTo ? `${f.yearTo}-12-31` : undefined;
+  if (category === "latest" && (!lte || lte > today)) lte = today;
+  if (category === "upcoming" && (!gte || gte < today)) gte = today;
+  if (gte) params["primary_release_date.gte"] = gte;
+  if (lte) params["primary_release_date.lte"] = lte;
+
+  const defaultSort =
+    category === "latest" ? "newest" : category === "upcoming" ? "oldest" : category === "top-rated" ? "rating" : "popularity";
+  const sort = f.sort ?? defaultSort;
+  params.sort_by = sortParam[sort];
+
+  if (f.minRating !== undefined) params["vote_average.gte"] = f.minRating;
+  if (sort === "rating" || category === "top-rated" || f.minRating !== undefined) params["vote_count.gte"] = 200;
+  else if (category === "latest") params["vote_count.gte"] = 10;
+  return params;
 }
 
 type RawDetail = RawMovie & {
@@ -98,6 +120,29 @@ function resolvePlayback(id: string, raw: RawDetail): Playback | null {
   return trailer ? { kind: "youtube", key: trailer.key, label: "Official trailer" } : null;
 }
 
+const COUNTRIES: Country[] = [
+  { code: "US", name: "United States" }, { code: "GB", name: "United Kingdom" }, { code: "IN", name: "India" },
+  { code: "BD", name: "Bangladesh" }, { code: "PK", name: "Pakistan" }, { code: "FR", name: "France" },
+  { code: "DE", name: "Germany" }, { code: "IT", name: "Italy" }, { code: "ES", name: "Spain" },
+  { code: "JP", name: "Japan" }, { code: "KR", name: "South Korea" }, { code: "CN", name: "China" },
+  { code: "HK", name: "Hong Kong" }, { code: "TH", name: "Thailand" }, { code: "TR", name: "Türkiye" },
+  { code: "RU", name: "Russia" }, { code: "BR", name: "Brazil" }, { code: "MX", name: "Mexico" },
+  { code: "CA", name: "Canada" }, { code: "AU", name: "Australia" }, { code: "SE", name: "Sweden" },
+  { code: "DK", name: "Denmark" }, { code: "NO", name: "Norway" }, { code: "PL", name: "Poland" },
+  { code: "IR", name: "Iran" }, { code: "EG", name: "Egypt" }, { code: "SA", name: "Saudi Arabia" },
+  { code: "NG", name: "Nigeria" }, { code: "ZA", name: "South Africa" }, { code: "ID", name: "Indonesia" },
+  { code: "PH", name: "Philippines" }, { code: "AR", name: "Argentina" }, { code: "IE", name: "Ireland" },
+  { code: "NZ", name: "New Zealand" },
+];
+
+const LANGUAGES: Language[] = [
+  { code: "en", name: "English" }, { code: "bn", name: "Bengali" }, { code: "hi", name: "Hindi" },
+  { code: "ta", name: "Tamil" }, { code: "te", name: "Telugu" }, { code: "ko", name: "Korean" },
+  { code: "ja", name: "Japanese" }, { code: "zh", name: "Chinese" }, { code: "fr", name: "French" },
+  { code: "es", name: "Spanish" }, { code: "de", name: "German" }, { code: "it", name: "Italian" },
+  { code: "tr", name: "Turkish" }, { code: "ar", name: "Arabic" }, { code: "ru", name: "Russian" },
+];
+
 export const tmdbProvider: MovieProvider = {
   id: "tmdb",
   attribution: "Film data provided by TMDB.",
@@ -105,12 +150,22 @@ export const tmdbProvider: MovieProvider = {
 
   async genres(): Promise<Genre[]> {
     const raw = await request<{ genres: { id: number; name: string }[] }>("/genre/movie/list");
-    return (raw?.genres ?? []).map((g) => ({ id: String(g.id), name: g.name }));
+    return (raw?.genres ?? []).map((g) => {
+      const name = g.name === "Animation" ? "Cartoon & Animation" : g.name;
+      return { id: String(g.id), name, slug: g.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") };
+    });
   },
 
-  async list(category, page, genre) {
-    const raw = genre
-      ? await request<RawList>("/discover/movie", { page, ...discoverParams(category, genre) })
+  languages: () => LANGUAGES,
+  countries: () => COUNTRIES,
+
+  bounds() {
+    return { yearMin: 1920, yearMax: new Date().getFullYear() + 1 };
+  },
+
+  async list(category, page, filters) {
+    const raw = hasFilters(filters)
+      ? await request<RawList>("/discover/movie", { page, ...discoverParams(category, filters) })
       : await request<RawList>(listPath[category], { page });
     return toPage(raw, page);
   },

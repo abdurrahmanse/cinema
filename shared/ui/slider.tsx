@@ -4,7 +4,7 @@ import * as React from "react";
 import { Slider as SliderPrimitive } from "radix-ui";
 import { cn } from "@/shared/lib/utils";
 
-function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimitive.Root>) {
+function Slider({ className, showThumb = false, ...props }: React.ComponentProps<typeof SliderPrimitive.Root> & { showThumb?: boolean }) {
   const thumbs = Array.isArray(props.value) ? props.value : (props.defaultValue ?? [0]);
   return (
     <SliderPrimitive.Root
@@ -18,7 +18,7 @@ function Slider({ className, ...props }: React.ComponentProps<typeof SliderPrimi
       {thumbs.map((_, i) => (
         <SliderPrimitive.Thumb
           key={i}
-          className="block size-3 rounded-full bg-primary opacity-0 transition-opacity focus-visible:opacity-100 group-hover/slider:opacity-100"
+          className={cn("block size-3 rounded-full bg-primary transition-opacity focus-visible:opacity-100", showThumb ? "size-4" : "opacity-0 group-hover/slider:opacity-100")}
         />
       ))}
     </SliderPrimitive.Root>

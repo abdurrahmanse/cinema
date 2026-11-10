@@ -40,7 +40,26 @@ export type Paginated<T> = {
   totalPages: number;
 };
 
-export type Genre = { id: string; name: string };
+export type Genre = { id: string; name: string; slug: string };
+
+export type SortKey = "popularity" | "rating" | "newest" | "oldest";
+
+/** All fields optional except genres; plain/serializable so it can key the cache. */
+export type MovieFilters = {
+  genres: string[]; // match ANY of these
+  yearFrom?: number;
+  yearTo?: number;
+  minRating?: number; // 0–10
+  language?: string; // original language code (TMDB only)
+  country?: string; // country code (see provider.countries())
+  sort?: SortKey;
+};
+
+export type Language = { code: string; name: string };
+
+export type Country = { code: string; name: string };
+
+export type FilterBounds = { yearMin: number; yearMax: number };
 
 export type MovieCategory = "trending" | "latest" | "upcoming" | "top-rated" | "popular";
 
@@ -51,7 +70,11 @@ export type MovieProvider = {
   /** Categories this source can serve */
   categories: readonly MovieCategory[];
   genres(): Promise<Genre[]>;
-  list(category: MovieCategory, page: number, genre?: string): Promise<Paginated<Movie>>;
+  bounds(): FilterBounds;
+  /** Empty when the source cannot filter by language */
+  languages(): Language[];
+  countries(): Country[];
+  list(category: MovieCategory, page: number, filters: MovieFilters): Promise<Paginated<Movie>>;
   search(query: string, page: number): Promise<Paginated<Movie>>;
   detail(id: string): Promise<MovieDetail | null>;
 };

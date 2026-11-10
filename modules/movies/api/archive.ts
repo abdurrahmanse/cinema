@@ -1,17 +1,11 @@
-import type { Genre, Movie, MovieCategory, MovieProvider, Paginated } from "../types";
+import type { Country, FilterBounds, Genre, Movie, MovieCategory, MovieFilters, MovieProvider, Paginated, SortKey } from "../types";
 
 // Internet Archive: keyless, full-length public-domain films that stream directly.
 const SEARCH_URL = "https://archive.org/advancedsearch.php";
 const PAGE_SIZE = 20;
 
-const BASE_QUERY = [
-  "collection:feature_films",
-  "mediatype:movies",
-  "format:(h.264 OR MPEG4)",
-  "year:[1920 TO 2030]",
-  "downloads:[2000 TO 99999999]",
-  "NOT subject:(exploitation OR erotic OR nudist OR sexploitation OR porn OR xxx OR adult)",
-].join(" AND ");
+const YEAR_MIN = 1920;
+const yearMax = () => new Date().getFullYear();
 
 const sortFor: Record<MovieCategory, string> = {
   trending: "downloads desc",
@@ -21,19 +15,63 @@ const sortFor: Record<MovieCategory, string> = {
   upcoming: "year desc",
 };
 
-const GENRES: (Genre & { subject: string })[] = [
-  { id: "drama", name: "Drama", subject: "drama" },
-  { id: "comedy", name: "Comedy", subject: "comedy" },
-  { id: "film-noir", name: "Film Noir", subject: "film noir" },
-  { id: "horror", name: "Horror", subject: "horror" },
-  { id: "sci-fi", name: "Science Fiction", subject: "science fiction" },
-  { id: "western", name: "Western", subject: "western" },
-  { id: "crime", name: "Crime", subject: "crime" },
-  { id: "romance", name: "Romance", subject: "romance" },
-  { id: "mystery", name: "Mystery", subject: "mystery" },
-  { id: "war", name: "War", subject: "war" },
-  { id: "animation", name: "Animation", subject: "animation" },
-  { id: "documentary", name: "Documentary", subject: "documentary" },
+const sortKeyMap: Record<SortKey, string> = {
+  popularity: "downloads desc",
+  rating: "avg_rating desc",
+  newest: "year desc",
+  oldest: "year asc",
+};
+
+function buildQuery(f: MovieFilters): string {
+  const parts = [
+    "collection:feature_films",
+    "mediatype:movies",
+    "format:(h.264 OR MPEG4)",
+    `year:[${f.yearFrom ?? YEAR_MIN} TO ${f.yearTo ?? yearMax()}]`,
+    "downloads:[2000 TO 99999999]",
+    "NOT subject:(exploitation OR erotic OR nudist OR sexploitation OR porn OR xxx OR adult)",
+  ];
+  const subjects = f.genres.flatMap((id) => GENRES.find((g) => g.id === id)?.subjects ?? []);
+  if (subjects.length) parts.push(`subject:(${subjects.map((s) => `"${s}"`).join(" OR ")})`);
+  const terms = COUNTRIES.find((c) => c.code === f.country)?.terms;
+  if (terms) {
+    const q = terms.map((t) => `"${t}"`).join(" OR ");
+    parts.push(`(subject:(${q}) OR country:(${q}) OR language:(${q}))`);
+  }
+  if (f.minRating) parts.push(`avg_rating:[${(f.minRating / 2).toFixed(1)} TO 5]`);
+  return parts.join(" AND ");
+}
+
+type ArchiveGenre = Genre & { subjects: string[] };
+const g = (id: string, name: string, ...subjects: string[]): ArchiveGenre => ({
+  id, slug: id, name, subjects: subjects.length ? subjects : [id],
+});
+
+const GENRES: ArchiveGenre[] = [
+  g("drama", "Drama"), g("comedy", "Comedy"), g("action", "Action"), g("adventure", "Adventure"),
+  g("thriller", "Thriller"), g("crime", "Crime"), g("film-noir", "Film Noir", "film noir"), g("horror", "Horror"),
+  g("sci-fi", "Science Fiction", "science fiction"), g("fantasy", "Fantasy"), g("western", "Western"),
+  g("romance", "Romance"), g("mystery", "Mystery"), g("war", "War", "war", "world war"), g("musical", "Musical"),
+  g("family", "Family"), g("animation", "Cartoon & Animation", "animation", "cartoon", "cartoons"),
+  g("documentary", "Documentary"), g("silent", "Silent Film"),
+  g("biography", "Biography"), g("history", "History"), g("spy", "Spy"), g("martial-arts", "Martial Arts", "martial arts", "kung fu"),
+  g("monster", "Monster"), g("zombie", "Zombie"), g("vampire", "Vampire"), g("detective", "Detective"),
+  g("superhero", "Superhero"), g("b-movie", "B-Movie"), g("serial", "Serial"), g("cult", "Cult Classic", "cult"),
+  g("propaganda", "Propaganda"), g("jungle", "Jungle"), g("space", "Space"), g("ghost", "Supernatural", "ghost", "supernatural"),
+];
+
+// Archive records rarely carry a country field, so we match nationality/language/subject tags (approximate).
+const COUNTRIES: (Country & { terms: string[] })[] = [
+  { code: "US", name: "United States", terms: ["american", "usa", "united states", "hollywood"] },
+  { code: "GB", name: "United Kingdom", terms: ["british", "england", "united kingdom", "english film"] },
+  { code: "FR", name: "France", terms: ["french", "france"] },
+  { code: "DE", name: "Germany", terms: ["german", "germany"] },
+  { code: "IT", name: "Italy", terms: ["italian", "italy"] },
+  { code: "ES", name: "Spain", terms: ["spanish", "spain"] },
+  { code: "RU", name: "Russia / USSR", terms: ["russian", "soviet", "russia", "ussr"] },
+  { code: "JP", name: "Japan", terms: ["japanese", "japan"] },
+  { code: "IN", name: "India", terms: ["hindi", "indian", "india", "bollywood"] },
+  { code: "CN", name: "China", terms: ["chinese", "china", "hong kong"] },
 ];
 
 type Doc = {
@@ -122,19 +160,24 @@ export const archiveProvider: MovieProvider = {
   categories: ["trending", "latest", "top-rated", "popular"],
 
   async genres() {
-    return GENRES.map(({ id, name }) => ({ id, name }));
+    return GENRES.map(({ id, name, slug }) => ({ id, name, slug }));
   },
 
-  async list(category, page, genre) {
-    const subject = GENRES.find((g) => g.id === genre)?.subject;
-    const q = subject ? `${BASE_QUERY} AND subject:"${subject}"` : BASE_QUERY;
-    return search(q, sortFor[category], page);
+  languages: () => [],
+  countries: () => COUNTRIES.map(({ code, name }) => ({ code, name })),
+
+  bounds(): FilterBounds {
+    return { yearMin: YEAR_MIN, yearMax: yearMax() };
+  },
+
+  async list(category, page, filters) {
+    return search(buildQuery(filters), filters.sort ? sortKeyMap[filters.sort] : sortFor[category], page);
   },
 
   async search(query, page) {
     const clean = query.replace(/[^\p{L}\p{N}\s]/gu, " ").replace(/\s+/g, " ").trim();
     if (!clean) return { results: [], page, totalPages: 0 };
-    return search(`${BASE_QUERY} AND (title:(${clean}) OR subject:(${clean}))`, "downloads desc", page);
+    return search(`${buildQuery({ genres: [] })} AND (title:(${clean}) OR subject:(${clean}))`, "downloads desc", page);
   },
 
   async detail(id) {
@@ -151,8 +194,8 @@ export const archiveProvider: MovieProvider = {
     const meta = data.metadata;
     const subjects = list(meta.subject).flatMap((s) => s.split(/[;,]/)).map((s) => s.trim()).filter(Boolean);
     const similarQuery = subjects[0]
-      ? `${BASE_QUERY} AND subject:"${subjects[0].replace(/"/g, "")}" AND NOT identifier:${id}`
-      : BASE_QUERY;
+      ? `${buildQuery({ genres: [] })} AND subject:"${subjects[0].replace(/"/g, "")}" AND NOT identifier:${id}`
+      : buildQuery({ genres: [] });
     const similar = await search(similarQuery, "downloads desc", 1).catch(() => null);
 
     return {
