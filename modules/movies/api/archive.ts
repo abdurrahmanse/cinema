@@ -1,5 +1,5 @@
 import type {
-  Country, FilterBounds, Genre, ItemKind, Movie, MovieCategory, MovieDetail, MovieFilters, MovieProvider, Paginated,
+  Country, FilterBounds, Genre, ItemKind, Movie, MovieCategory, MovieFilters, MovieProvider, Paginated,
   SectionId, SortKey,
 } from "../types";
 
@@ -65,15 +65,13 @@ const SERIAL_GENRES: ArchiveGenre[] = [
 const CARTOON_GENRES: ArchiveGenre[] = [
   g("comedy", "Comedy"), g("adventure", "Adventure"), g("fantasy", "Fantasy"), g("family", "Family"),
   g("musical", "Musical", "musical", "music"), g("sci-fi", "Science Fiction", "science fiction"),
-  g("superhero", "Superhero"), g("fairy-tale", "Fairy Tales", "fairy tale", "fairy tales"),
-  g("animals", "Animals", "animals", "animal"), g("stop-motion", "Stop Motion", "stop motion", "puppet"),
-  g("educational", "Educational"), g("christmas", "Christmas"), g("war", "WWII Propaganda", "war", "propaganda"),
+  g("fairy-tale", "Fairy Tales", "fairy tale", "fairy tales"),
+  g("stop-motion", "Stop Motion", "stop motion", "puppet"), g("christmas", "Christmas"), g("war", "WWII Propaganda", "war", "propaganda"),
 ];
 
 const DRAMA_GENRES: ArchiveGenre[] = [
-  g("crime", "Crime"), g("mystery", "Mystery"), g("romance", "Romance"), g("family", "Family"),
-  g("history", "Historical"), g("anthology", "Anthology"), g("comedy", "Comedy-Drama", "comedy"),
-  g("western", "Western"), g("war", "War"), g("sci-fi", "Science Fiction", "science fiction"),
+  g("crime", "Crime"), g("mystery", "Mystery"), g("romance", "Romance"),
+  g("anthology", "Anthology"), g("comedy", "Comedy-Drama", "comedy"), g("war", "War"), g("sci-fi", "Science Fiction", "science fiction"),
   g("theatre", "Theatre & Stage", "theatre", "play", "playhouse"),
 ];
 
