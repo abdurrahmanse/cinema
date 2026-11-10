@@ -1,75 +1,36 @@
-# Data Science Framework
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-A comprehensive data science and machine learning framework covering fundamental libraries, deep learning frameworks, and deployment strategies.
+## Getting Started
 
-## 📋 Overview
+First, run the development server:
 
-This repository contains a structured learning path for data science professionals, organized into 20 core modules covering the complete data science workflow.
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
 
-## 🗂️ Modules
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
-| Module | Topic | Description |
-|--------|-------|-------------|
-| 01 | NumPy | Fundamental numerical computing library |
-| 02 | Pandas | Data manipulation and analysis |
-| 03 | Matplotlib | Data visualization basics |
-| 04 | Seaborn | Statistical data visualization |
-| 05 | scikit-learn | Machine learning algorithms and tools |
-| 06 | XGBoost | Gradient boosting library |
-| 07 | LightGBM | Fast gradient boosting library |
-| 08 | TensorFlow | Deep learning framework |
-| 09 | PyTorch | Deep learning framework |
-| 10 | NLP | Natural Language Processing |
-| 11 | OpenCV | Computer vision library |
-| 12 | Deployment | Model deployment strategies |
-| 13 | Statistics | Statistical methods and theory |
-| 14 | Datasets | Data preprocessing and handling |
-| 15 | Models | Advanced modeling techniques |
-| 16 | Projects | Real-world project examples |
-| 17 | Utils | Utility functions and helpers |
-| 18 | DevOps | Development operations |
-| 19 | MLOps | Machine Learning Operations |
-| 20 | Cloud | Cloud computing for data science |
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-## 📚 Structure
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
 
-Each module contains:
+## Learn More
 
-- `basics.ipynb` - Foundational concepts
-- `examples.ipynb` - Practical examples
-- `mini_project.ipynb` - Hands-on project
-- `notes.md` - Key concepts and summaries
+To learn more about Next.js, take a look at the following resources:
 
-## 🚀 Getting Started
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
 
-1. Clone the repository
-2. Install required dependencies:
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
 
-   ```bash
-   pip install numpy pandas matplotlib seaborn scikit-learn
-   pip install tensorflow pytorch xgboost lightgbm
-   pip install opencv-python nltk
-   ```
+## Deploy on Vercel
 
-3. Open notebooks in Jupyter or VS Code
-4. Follow modules in numerical order
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
-## 🔧 Prerequisites
-
-- Python 3.8+
-- Jupyter Notebook
-- Basic programming knowledge
-
-## 📝 License
-
-This project is open source and available under the MIT License.
-
-## 👤 Author
-
-Data Science Framework Team
-
-## 🙏 Acknowledgments
-
-- Community contributors
-- Open source maintainers
-- Research organizations
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
