@@ -1,42 +1,43 @@
 # Cinéma
 
-A minimal, classical movie website. No backend, no uploads — the catalogue comes from a movie API, so new releases appear on their own.
+A premium streaming-style site (Netflix / Prime Video class): billboard hero, rails, Top 10, filters, search, My List, Continue watching, and a failover video player. No backend — everything comes from a movie API.
 
-## Features
-- Home with featured film and rails (latest, upcoming, top rated, popular)
-- **Genre filter** and pagination on every collection (`/movies/[category]?genre=…`)
-- **Search** by title
-- Film page: details, cast, similar films, and a **custom video player** (play/pause, seek, ±10s, volume, fullscreen, keyboard: Space/K, ←/→, M, F; MP4 and HLS)
+## Run
+```bash
+npm install
+cp .env.example .env.local   # then add your token
+npm run dev
+```
 
 ## Data sources (auto-selected)
 | Mode | Setup | You get |
 |---|---|---|
-| **Internet Archive** (default) | none — keyless | Real API, full-length public-domain films that play in full |
-| **TMDB** | `MOVIE_API_TOKEN` in `.env.local` | Newest releases, upcoming, genres, cast, official trailers in the player |
+| **TMDB** (recommended) | `MOVIE_API_TOKEN` in `.env.local` | Newest releases, upcoming, trending, Indian cinema by language, series, genres, cast, trailers |
+| **Internet Archive** (default) | none | Keyless demo: public-domain films, series and cartoons that play in full |
 
-TMDB provides metadata and trailers, not full films. To play full films in TMDB mode you must supply a source you are licensed to stream:
-`MOVIE_STREAM_URL_TEMPLATE=https://cdn.example.com/films/{id}/master.m3u8`
+### Getting a TMDB token
+1. Sign up at themoviedb.org → Settings → API → *Request an API key*.
+2. Copy the **API Read Access Token** (long, starts with `eyJ…`) — not the short v3 key.
+3. Put it in `.env.local` as `MOVIE_API_TOKEN=…` and restart.
 
-```bash
-cp .env.example .env.local
-npm install
-npm run dev
-```
+TMDB provides metadata, images and trailers — **not full movies**. Full playback comes from servers you are licensed to stream from:
+`MOVIE_STREAM_URL_TEMPLATE=https://cdn1.example.com/{id}/master.m3u8,https://cdn2.example.com/{id}.mp4`
+Servers are tried in order; the player fails over automatically and falls back to the trailer.
 
 ## Structure (modular monolith)
 ```
-app/                    routing only
-modules/movies/
-  api/                  providers: tmdb.ts, archive.ts  (swap or add APIs here)
-  services/             cached data access ('use cache' + cacheLife)
-  components/           hero, card, grid, genre filter, video player, detail
-shared/
-  ui/                   shadcn/ui components on Radix primitives (Button, Badge, Slider, Tooltip, Sheet, Avatar…)
-  layout/ lib/ config/
+app/                      routing only
+modules/movies/           api/ (tmdb, archive, http), services/ (cached), components/, rails.ts, sections.ts, filters.ts
+modules/library/          My List + Continue watching (localStorage)
+shared/                   ui/ (shadcn/ui + Radix), layout/, lib/, config/
 ```
-New API? Implement `MovieProvider` (`modules/movies/types.ts`) and select it in `services/movie-service.ts`.
+Add shadcn components with `npx shadcn@latest add <name>` (configured in `components.json`).
 
 ## Design system
-**shadcn/ui + Radix UI**, themed with semantic CSS variables in `app/globals.css`. Classicism × minimalism: Cormorant Garamond + Inter, warm ink background, ivory text, one muted-gold `primary`, square corners, hairline borders.
+shadcn/ui + Radix tokens in `app/globals.css`. Plus Jakarta Sans (display) + Inter (UI), near-black surfaces, rose primary, amber ratings, rounded cards.
 
-Lists are cached ~1 hour; `revalidateTag("movies")` forces a refresh.
+## Freshness
+New-release lists cache for minutes (`cacheLife("minutes")`), pages auto-refresh every 5 min.
+
+## Before launch
+Set `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_CONTACT_EMAIL`, and have the Terms/Privacy templates reviewed.
