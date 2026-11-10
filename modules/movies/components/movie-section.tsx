@@ -1,7 +1,8 @@
 import { Container } from "@/shared/ui/container";
 import { SectionHeading } from "@/shared/ui/section-heading";
-import { categoryMeta, type BrowsableCategory } from "../categories";
+import { categoryMeta } from "../categories";
 import { getMovies } from "../services/movie-service";
+import type { MovieCategory } from "../types";
 import { MovieGrid } from "./movie-grid";
 
 export async function MovieSection({
@@ -9,17 +10,16 @@ export async function MovieSection({
   limit = 10,
   eyebrow,
 }: {
-  category: BrowsableCategory | "trending";
+  category: MovieCategory;
   limit?: number;
   eyebrow?: string;
 }) {
   const { results } = await getMovies(category, 1);
-  const { title } = categoryMeta[category];
   return (
     <section className="py-16 md:py-20">
       <Container>
         <SectionHeading
-          title={title}
+          title={categoryMeta[category].title}
           eyebrow={eyebrow}
           href={category === "trending" ? undefined : `/movies/${category}`}
         />

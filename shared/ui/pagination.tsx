@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { ArrowLeft, ArrowRight } from "lucide-react";
+import { Button } from "@/shared/ui/button";
 
 export function Pagination({
   page,
@@ -10,18 +12,20 @@ export function Pagination({
   hrefFor: (page: number) => string;
 }) {
   if (totalPages <= 1) return null;
-  const linkClass =
-    "border border-line px-5 py-2.5 text-xs uppercase tracking-[0.2em] transition-colors hover:border-accent hover:text-accent";
   return (
     <nav aria-label="Pagination" className="mt-16 flex items-center justify-between">
       {page > 1 ? (
-        <Link href={hrefFor(page - 1)} className={linkClass}>← Previous</Link>
+        <Button asChild variant="subtle">
+          <Link href={hrefFor(page - 1)}><ArrowLeft /> Previous</Link>
+        </Button>
       ) : <span />}
-      <span className="font-serif text-lg text-muted">
-        {page} <span className="text-line">/</span> {totalPages}
+      <span className="font-serif text-lg text-muted-foreground">
+        {page} <span className="text-border">/</span> {totalPages}
       </span>
       {page < totalPages ? (
-        <Link href={hrefFor(page + 1)} className={linkClass}>Next →</Link>
+        <Button asChild variant="subtle">
+          <Link href={hrefFor(page + 1)}>Next <ArrowRight /></Link>
+        </Button>
       ) : <span />}
     </nav>
   );

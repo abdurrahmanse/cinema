@@ -14,13 +14,13 @@ async function Results({ searchParams }: Pick<PageProps<"/search">, "searchParam
   const page = Math.max(1, Number(rawPage) || 1);
 
   if (!q) {
-    return <p className="font-serif text-2xl text-muted">Type a title in the search box to begin.</p>;
+    return <p className="font-serif text-2xl text-muted-foreground">Type a title in the search box to begin.</p>;
   }
   const data = await searchMovies(q, page);
   return (
     <>
       <h1 className="mb-14 font-serif text-4xl md:text-5xl">
-        Results for <span className="text-accent">“{q}”</span>
+        Results for <span className="text-primary">“{q}”</span>
       </h1>
       <MovieGrid movies={data.results} />
       <Pagination

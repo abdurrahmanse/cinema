@@ -1,38 +1,75 @@
 @import "tailwindcss";
+@import "tw-animate-css";
 
+/*
+ * Design system — Classicism × Minimalism.
+ * shadcn/ui token contract (Radix-style semantic variables).
+ * Warm ink surfaces, ivory type, one muted-gold primary.
+ */
 :root {
+  --radius: 0rem; /* classical: square edges, hairline borders */
   --background: #0d0c0b;
-  --surface: #161412;
   --foreground: #ece6da;
-  --muted: #968d7d;
-  --line: rgb(236 230 218 / 0.13);
-  --accent: #c0a062;
+  --card: #161412;
+  --card-foreground: #ece6da;
+  --popover: #161412;
+  --popover-foreground: #ece6da;
+  --primary: #c0a062;
+  --primary-foreground: #0d0c0b;
+  --secondary: #1d1a17;
+  --secondary-foreground: #ece6da;
+  --muted: #1d1a17;
+  --muted-foreground: #968d7d;
+  --accent: #221e1a;
+  --accent-foreground: #c0a062;
+  --destructive: #b5533c;
+  --border: rgb(236 230 218 / 0.13);
+  --input: rgb(236 230 218 / 0.18);
+  --ring: #c0a062;
   color-scheme: dark;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-surface: var(--surface);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted);
-  --color-line: var(--line);
+  --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: var(--radius);
   --font-sans: var(--font-inter);
   --font-serif: var(--font-cormorant);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-inter), system-ui, sans-serif;
-}
-
-::selection {
-  background: var(--accent);
-  color: var(--background);
-}
-
-:focus-visible {
-  outline: 1px solid var(--accent);
-  outline-offset: 3px;
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+  ::selection {
+    background: var(--primary);
+    color: var(--primary-foreground);
+  }
+  :focus-visible {
+    outline: 1px solid var(--ring);
+    outline-offset: 3px;
+  }
 }

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { imageUrl } from "../image";
+import { imageUrl, isOptimizable } from "../image";
 
 export function Poster({
   path,
@@ -14,15 +14,22 @@ export function Poster({
 }) {
   const src = imageUrl(path, "w500");
   return (
-    <div className="relative aspect-[2/3] w-full overflow-hidden bg-surface ring-1 ring-line">
-      {src ? (
-        <Image src={src} alt={`${title} poster`} fill sizes={sizes} priority={priority} className="object-cover" />
-      ) : (
-        <div className="flex h-full flex-col items-center justify-center gap-4 p-6 text-center">
-          <span className="h-px w-8 bg-accent" />
-          <span className="font-serif text-xl leading-snug text-foreground/80">{title}</span>
-          <span className="h-px w-8 bg-accent" />
-        </div>
+    <div className="relative aspect-[2/3] w-full overflow-hidden bg-card ring-1 ring-border">
+      <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center">
+        <span className="h-px w-8 bg-primary" />
+        <span className="font-serif text-xl leading-snug text-foreground/80">{title}</span>
+        <span className="h-px w-8 bg-primary" />
+      </div>
+      {src && (
+        <Image
+          src={src}
+          alt={`${title} poster`}
+          fill
+          sizes={sizes}
+          priority={priority}
+          unoptimized={!isOptimizable(src)}
+          className="object-cover"
+        />
       )}
     </div>
   );

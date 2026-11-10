@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Inter } from "next/font/google";
 import { siteConfig } from "@/shared/config/site";
-import { DemoBanner } from "@/shared/ui/demo-banner";
 import { Footer } from "@/shared/layout/footer";
 import { Header } from "@/shared/layout/header";
 import "./globals.css";
@@ -22,7 +21,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${inter.variable} ${cormorant.variable} h-full antialiased`}>
       <body className="relative flex min-h-full flex-col">
-        <DemoBanner />
         <Header />
         <main className="flex-1">{children}</main>
         <Footer />

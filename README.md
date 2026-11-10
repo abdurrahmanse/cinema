@@ -1,37 +1,42 @@
 # Cinéma
 
-A minimal, classical movie website. No backend, no uploads — films come from a movie API and new releases appear automatically.
+A minimal, classical movie website. No backend, no uploads — the catalogue comes from a movie API, so new releases appear on their own.
 
-## Setup
+## Features
+- Home with featured film and rails (latest, upcoming, top rated, popular)
+- **Genre filter** and pagination on every collection (`/movies/[category]?genre=…`)
+- **Search** by title
+- Film page: details, cast, similar films, and a **custom video player** (play/pause, seek, ±10s, volume, fullscreen, keyboard: Space/K, ←/→, M, F; MP4 and HLS)
+
+## Data sources (auto-selected)
+| Mode | Setup | You get |
+|---|---|---|
+| **Internet Archive** (default) | none — keyless | Real API, full-length public-domain films that play in full |
+| **TMDB** | `MOVIE_API_TOKEN` in `.env.local` | Newest releases, upcoming, genres, cast, official trailers in the player |
+
+TMDB provides metadata and trailers, not full films. To play full films in TMDB mode you must supply a source you are licensed to stream:
+`MOVIE_STREAM_URL_TEMPLATE=https://cdn.example.com/films/{id}/master.m3u8`
 
 ```bash
-cp .env.example .env.local   # then set MOVIE_API_TOKEN
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-Without `MOVIE_API_TOKEN` the site runs on built-in demo data (a banner tells you so).
-Default provider: [TMDB](https://www.themoviedb.org/) v3 (use the *API Read Access Token*).
-
 ## Structure (modular monolith)
-
 ```
-app/                    routing only (thin pages)
+app/                    routing only
 modules/movies/
-  api/                  providers: tmdb.ts, mock.ts  (swap the API here only)
+  api/                  providers: tmdb.ts, archive.ts  (swap or add APIs here)
   services/             cached data access ('use cache' + cacheLife)
-  components/           hero, card, grid, detail …
-  types.ts, categories.ts, image.ts
+  components/           hero, card, grid, genre filter, video player, detail
 shared/
-  ui/ layout/ lib/ config/   design-system primitives, header/footer, formatters, site config
+  ui/                   shadcn/ui components on Radix primitives (Button, Badge, Slider, Tooltip, Sheet, Avatar…)
+  layout/ lib/ config/
 ```
-
-To use a different API, implement the `MovieProvider` interface (`modules/movies/types.ts`) and select it in `services/movie-service.ts`.
-
-## Freshness
-
-Lists are cached for ~1 hour (`cacheLife("hours")`), so new releases show up on their own. Call `revalidateTag("movies")` to force a refresh.
+New API? Implement `MovieProvider` (`modules/movies/types.ts`) and select it in `services/movie-service.ts`.
 
 ## Design system
+**shadcn/ui + Radix UI**, themed with semantic CSS variables in `app/globals.css`. Classicism × minimalism: Cormorant Garamond + Inter, warm ink background, ivory text, one muted-gold `primary`, square corners, hairline borders.
 
-Minimalism × classicism: Cormorant Garamond (serif) + Inter, warm ink background, ivory text, a single muted-gold accent, hairline borders, generous whitespace. Tokens live in `app/globals.css`.
+Lists are cached ~1 hour; `revalidateTag("movies")` forces a refresh.
