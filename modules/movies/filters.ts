@@ -73,12 +73,10 @@ export const ratingOptions = [
   ...[5, 6, 7, 8].map((n) => ({ value: String(n), label: `★ ${n}+` })),
 ];
 
-const DECADES_FROM = 2000;
-
-/** Quick-pick decade chips: 2000s up to the current decade. */
-export function decades(bounds: FilterBounds): { label: string; from: number; to: number }[] {
+/** Quick-pick decade chips from `from` (e.g. 2000) up to the current decade. */
+export function decades(bounds: FilterBounds, from: number): { label: string; from: number; to: number }[] {
   const out = [];
-  for (let d = Math.floor(bounds.yearMax / 10) * 10; d >= DECADES_FROM; d -= 10) {
+  for (let d = Math.floor(bounds.yearMax / 10) * 10; d >= from; d -= 10) {
     out.push({ label: `${d}s`, from: Math.max(d, bounds.yearMin), to: Math.min(d + 9, bounds.yearMax) });
   }
   return out;

@@ -1,5 +1,11 @@
+export type SectionId = "movies" | "serials" | "cartoons" | "drama";
+
+/** Which detail route an item belongs to */
+export type ItemKind = "movie" | "tv";
+
 export type Movie = {
   id: string;
+  kind: ItemKind;
   title: string;
   overview: string;
   /** TMDB relative path or an absolute image URL */
@@ -65,16 +71,18 @@ export type MovieCategory = "trending" | "latest" | "upcoming" | "top-rated" | "
 
 export type MovieProvider = {
   id: "tmdb" | "archive";
-  /** Short note shown in the footer/banner */
+  /** Short note shown in the footer */
   attribution: string;
-  /** Categories this source can serve */
-  categories: readonly MovieCategory[];
-  genres(): Promise<Genre[]>;
+  /** Collections (tabs) this source can serve inside a section */
+  categories(section: SectionId): readonly MovieCategory[];
+  /** Genres / themes that make sense for the section */
+  genres(section: SectionId): Promise<Genre[]>;
   bounds(): FilterBounds;
-  /** Empty when the source cannot filter by language */
+  /** Empty when the source cannot filter by language / country */
   languages(): Language[];
   countries(): Country[];
-  list(category: MovieCategory, page: number, filters: MovieFilters): Promise<Paginated<Movie>>;
+  list(section: SectionId, category: MovieCategory, page: number, filters: MovieFilters): Promise<Paginated<Movie>>;
+  /** Global search across every section */
   search(query: string, page: number): Promise<Paginated<Movie>>;
-  detail(id: string): Promise<MovieDetail | null>;
+  detail(kind: ItemKind, id: string): Promise<MovieDetail | null>;
 };

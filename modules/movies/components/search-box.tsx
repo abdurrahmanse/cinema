@@ -61,10 +61,10 @@ export function SearchBox({ variant = "header", autoFocus = false }: { variant?:
     router.push(`/search?q=${encodeURIComponent(trimmed)}`);
   };
 
-  const goMovie = (id: string) => {
+  const goMovie = (kind: string, id: string) => {
     setOpen(false);
     setQuery("");
-    router.push(`/movie/${encodeURIComponent(id)}`);
+    router.push(`/${kind}/${encodeURIComponent(id)}`);
   };
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -79,7 +79,7 @@ export function SearchBox({ variant = "header", autoFocus = false }: { variant?:
       setOpen(false);
     } else if (e.key === "Enter") {
       e.preventDefault();
-      if (active >= 0 && results[active]) goMovie(results[active].id);
+      if (active >= 0 && results[active]) goMovie(results[active].kind, results[active].id);
       else goSearch();
     }
   };
@@ -143,7 +143,7 @@ export function SearchBox({ variant = "header", autoFocus = false }: { variant?:
                 role="option"
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
-                onClick={() => goMovie(m.id)}
+                onClick={() => goMovie(m.kind, m.id)}
                 className={cn("flex cursor-pointer items-center gap-4 px-3 py-2.5", i === active && "bg-white/10")}
               >
                 <span className="relative h-14 w-10 shrink-0 overflow-hidden bg-card ring-1 ring-border">

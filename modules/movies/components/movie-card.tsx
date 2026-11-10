@@ -5,7 +5,7 @@ import { Poster } from "./poster";
 
 export function MovieCard({ movie, priority = false }: { movie: Movie; priority?: boolean }) {
   return (
-    <Link href={`/movie/${encodeURIComponent(movie.id)}`} className="group block">
+    <Link href={`/${movie.kind}/${encodeURIComponent(movie.id)}`} className="group block">
       <div className="transition-transform duration-500 ease-out group-hover:-translate-y-1">
         <Poster path={movie.posterPath} title={movie.title} priority={priority} />
       </div>

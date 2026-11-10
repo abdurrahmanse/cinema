@@ -5,14 +5,8 @@ import { Container } from "@/shared/ui/container";
 
 export default function HomePage(props: PageProps<"/">) {
   return (
-    <Suspense
-      fallback={
-        <Container className="pb-24 pt-32">
-          <MovieGridSkeleton />
-        </Container>
-      }
-    >
-      <BrowseView category="latest" searchParams={props.searchParams} showSearch />
+    <Suspense fallback={<Container className="pb-24 pt-32"><MovieGridSkeleton /></Container>}>
+      <BrowseView section="movies" category="latest" searchParams={props.searchParams} showSearch />
     </Suspense>
   );
 }

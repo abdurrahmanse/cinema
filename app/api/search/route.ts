@@ -3,6 +3,7 @@ import { searchMovies } from "@/modules/movies/services/movie-service";
 
 export type SearchSuggestion = {
   id: string;
+  kind: "movie" | "tv";
   title: string;
   year: string | null;
   posterPath: string | null;
@@ -17,6 +18,7 @@ export async function GET(request: Request) {
     const { results } = await searchMovies(q, 1);
     const suggestions: SearchSuggestion[] = results.slice(0, 6).map((m) => ({
       id: m.id,
+      kind: m.kind,
       title: m.title,
       year: m.releaseDate ? m.releaseDate.slice(0, 4) : null,
       posterPath: m.posterPath,
